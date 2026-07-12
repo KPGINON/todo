@@ -8,6 +8,12 @@ const auth = require('./lib/auth');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 信任反向代理（Nginx 等）的 X-Forwarded-* 头：
+// 公网部署时代理做 SSL 终止，Node 侧连接为 HTTP，若不开启则
+// req.secure 恒为 false，导致 secure cookie（FORCE_HTTPS=1）不会被下发，
+// session 丢失，进而引发登录 CSRF 校验失败；同时 req.ip 也会取到代理 IP。
+app.set('trust proxy', 1);
+
 // 是否启用 HTTPS 强制重定向（公网部署设 FORCE_HTTPS=1）
 const FORCE_HTTPS = process.env.FORCE_HTTPS === '1';
 
