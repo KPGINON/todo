@@ -1,0 +1,50 @@
+const express = require('express');
+const router = express.Router();
+const store = require('../lib/store');
+
+// 设置页
+router.get('/', (req, res) => {
+  const settings = store.getSettings();
+  res.render('settings', { settings, msg: req.query.msg || '' });
+});
+
+// 保存设置
+router.post('/', (req, res) => {
+  const { aiBaseUrl, aiApiKey, aiModel } = req.body;
+  const patch = {
+    aiBaseUrl: (aiBaseUrl || '').trim(),
+    aiModel: (aiModel || '').trim()
+  };
+  // 仅在用户填写了新 key 时才更新，避免掩码提交覆盖原值
+  if (aiApiKey && aiApiKey.trim()) {
+    patch.aiApiKey = aiApiKey.trim();
+  }
+  store.setSettings(patch);
+  res.redirect('/settings?msg=' + encodeURIComponent('设置已保存'));
+});
+
+// 导出全部数据为 JSON 文件下载
+router.get('/export', (req, res) => {
+  const data = store.exportData();
+  const filename = `todo-backup-${Date.now()}.json`;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(JSON.stringify(data, null, 2));
+});
+
+// 导入数据（从 JSON 文本覆盖现有数据）
+router.post('/import', (req, res) => {
+  const json = req.body.json || '';
+  if (!json.trim()) {
+    return res.redirect('/settings?msg=' + encodeURIComponent('未提供数据'));
+  }
+  try {
+    const payload = JSON.parse(json);
+    store.importData(payload);
+    res.redirect('/settings?msg=' + encodeURIComponent('数据导入成功'));
+  } catch (e) {
+    res.redirect('/settings?msg=' + encodeURIComponent('导入失败：' + e.message));
+  }
+});
+
+module.exports = router;

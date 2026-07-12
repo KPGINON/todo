@@ -1,0 +1,26 @@
+<%- include('_head', { title: '归档详情 ' + date }) %>
+<h1>归档详情 <span class="date"><%= date %></span></h1>
+<a href="/archive" class="link-btn">← 返回归档列表</a>
+<% if (notFound) { %>
+  <p class="empty">该日期没有归档记录。</p>
+<% } else { %>
+<ul class="todo-list">
+  <% items.forEach(todo => { %>
+  <li class="todo-item done prio-<%= todo.priority %>">
+    <div class="todo-main">
+      <span class="check checked">✓</span>
+      <div class="todo-text">
+        <span class="title"><%= todo.title %></span>
+        <div class="meta">
+          <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
+          <span class="tag prio"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
+          <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>
+        </div>
+        <% if (todo.notes) { %><p class="notes"><%= todo.notes %></p><% } %>
+      </div>
+    </div>
+  </li>
+  <% }) %>
+</ul>
+<% } %>
+<%- include('_foot') %>

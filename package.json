@@ -1,0 +1,16 @@
+{
+  "name": "daily-clear-todo",
+  "version": "1.0.0",
+  "description": "日清 todo 清单 - 未完成任务顺延 + 日清归档 + AI 智能重排",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  }
+}

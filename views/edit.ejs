@@ -1,0 +1,27 @@
+<%- include('_head', { title: '编辑任务' }) %>
+<h1>编辑任务</h1>
+<form method="POST" action="/todos/<%= todo.id %>/edit" class="todo-form">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="text" name="title" value="<%= todo.title %>" placeholder="任务标题" required class="title-input">
+  <div class="row">
+    <label>优先级
+      <select name="priority">
+        <option value="high" <%= todo.priority==='high'?'selected':'' %>>高</option>
+        <option value="medium" <%= todo.priority==='medium'?'selected':'' %>>中</option>
+        <option value="low" <%= todo.priority==='low'?'selected':'' %>>低</option>
+      </select>
+    </label>
+    <label>预计完成时间
+      <input type="time" name="dueTime" value="<%= todo.dueTime %>">
+    </label>
+    <label>标签（逗号分隔）
+      <input type="text" name="tags" value="<%= todo.tags.join(', ') %>">
+    </label>
+  </div>
+  <textarea name="notes" rows="4" placeholder="备注"><%= todo.notes %></textarea>
+  <div class="btns">
+    <button type="submit">保存</button>
+    <a href="/" class="link-btn">取消</a>
+  </div>
+</form>
+<%- include('_foot') %>

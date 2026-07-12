@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title : '日清 Todo' %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <% if (typeof showNav !== 'undefined' ? showNav : true) { %>
+  <button type="button" class="menu-toggle" id="menu-toggle" aria-label="打开菜单">☰</button>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <aside class="sidebar" id="sidebar">
+    <a href="/" class="brand">
+      <span class="brand-icon">✓</span>
+      <span class="brand-text">日清</span>
+    </a>
+    <nav class="side-nav">
+      <a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="nav-icon">◎</span><span>今日</span></a>
+      <a href="/stats" class="<%= path.startsWith('/stats') ? 'active' : '' %>"><span class="nav-icon">▤</span><span>统计</span></a>
+      <a href="/search" class="<%= path.startsWith('/search') ? 'active' : '' %>"><span class="nav-icon">⌕</span><span>搜索</span></a>
+      <a href="/archive" class="<%= path.startsWith('/archive') ? 'active' : '' %>"><span class="nav-icon">▤</span><span>归档</span></a>
+      <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="nav-icon">⚙</span><span>设置</span></a>
+    </nav>
+    <button type="button" class="side-shortcut" id="side-shortcut" title="快捷键帮助">⌨ 快捷键</button>
+  </aside>
+  <div class="main-wrap">
+  <% } else { %>
+  <div class="main-wrap no-sidebar">
+  <% } %>
+  <main class="container">

@@ -1,0 +1,248 @@
+<%- include('_head', { title: '今日清单' }) %>
+
+<div class="page-head">
+  <div class="page-title">
+    <h1>今日清单</h1>
+    <span class="date"><%= today %></span>
+  </div>
+  <div class="page-tools">
+    <button type="button" class="tool-btn" id="tool-daily-clear" title="日清归档">⊟ 日清</button>
+    <button type="button" class="tool-btn" id="tool-add-detail" title="带详情新建">+ 详情新建</button>
+  </div>
+</div>
+
+<% if (msg) { %><div class="msg"><%= msg %></div><% } %>
+
+<!-- 快速新建（常驻，回车即添加） -->
+<div class="quick-add-wrap">
+  <form method="POST" action="/todos" class="quick-add">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="priority" value="medium">
+    <input type="text" name="title" id="quick-add-input" placeholder="输入任务，回车快速添加..." required>
+    <button type="submit" class="add-submit">+</button>
+  </form>
+  <button type="button" class="icon-btn voice-btn" id="voice-btn" title="语音速记（说话即可，AI 帮你整理）" aria-label="语音速记">🎤</button>
+  <button type="button" class="icon-btn ai-parse-btn" id="ai-parse-btn" title="用 AI 解析输入框内容并整理为任务" aria-label="AI 整理">✨</button>
+</div>
+
+<!-- 带详情新建（默认折叠） -->
+<details class="add-box" id="add-detail-box">
+  <summary>+ 带详情新建</summary>
+  <form method="POST" action="/todos" class="todo-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="text" name="title" placeholder="任务标题" required class="title-input">
+    <div class="row">
+      <label>优先级
+        <select name="priority">
+          <option value="high">高</option>
+          <option value="medium" selected>中</option>
+          <option value="low">低</option>
+        </select>
+      </label>
+      <label>预计完成时间
+        <input type="time" name="dueTime">
+      </label>
+      <label>标签（逗号分隔）
+        <input type="text" name="tags" placeholder="工作, 生活">
+      </label>
+    </div>
+    <textarea name="notes" placeholder="备注（可选）" rows="2"></textarea>
+    <button type="submit">添加</button>
+  </form>
+</details>
+
+<!-- 日清按钮 -->
+<form method="POST" action="/daily-clear" class="clear-form" id="daily-clear-form" onsubmit="return confirm('日清：把今天已完成的任务归档，未完成的顺延。继续？')">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="date" value="<%= today %>">
+  <button type="submit" class="btn-clear">日清归档</button>
+</form>
+
+<!-- 批量操作工具栏（选中任务时显示） -->
+<div class="batch-bar" id="batch-bar" style="display:none;">
+  <span id="batch-count">已选 0 项</span>
+  <form method="POST" action="/todos/batch" class="batch-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div id="batch-ids-container"></div>
+    <input type="hidden" name="action" value="" id="batch-action">
+    <button type="submit" onclick="setBatchAction('complete')">批量完成</button>
+    <button type="submit" onclick="setBatchAction('uncomplete')">取消完成</button>
+    <select name="priority" onchange="if(this.value){setBatchAction('priority');this.form.submit();}">
+      <option value="">改优先级...</option>
+      <option value="high">高</option>
+      <option value="medium">中</option>
+      <option value="low">低</option>
+    </select>
+    <input type="text" name="tags" placeholder="加标签" onkeydown="if(event.key==='Enter'){setBatchAction('addTags');}">
+    <button type="submit" onclick="setBatchAction('addTags')">加标签</button>
+    <button type="submit" onclick="return confirm('删除选中任务？')&&setBatchAction('delete')" class="danger">批量删除</button>
+  </form>
+</div>
+
+<!-- 看板视图：待办 / 已完成 双列 -->
+<div class="board" id="todo-board">
+  <section class="board-col" data-status="todo">
+    <div class="col-head">
+      <h2>待办 <span class="col-count" id="todo-count">0</span></h2>
+    </div>
+    <ul class="todo-list" id="todo-list">
+      <% todos.filter(t => !t.completed).forEach((todo, i) => { %>
+      <li class="todo-item prio-<%= todo.priority %>" data-id="<%= todo.id %>" data-index="<%= i %>" draggable="true">
+        <div class="todo-main">
+          <input type="checkbox" class="batch-check" data-id="<%= todo.id %>" onclick="updateBatchBar()" aria-label="选择">
+          <span class="drag-handle" title="拖拽排序">⠿</span>
+          <form method="POST" action="/todos/<%= todo.id %>/toggle" class="toggle-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="check" title="标记完成"></button>
+          </form>
+          <div class="todo-text">
+            <span class="title"><%= todo.title %></span>
+            <div class="meta">
+              <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
+              <span class="tag prio prio-<%= todo.priority %>"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
+              <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>
+              <% if (todo.notes) { %><span class="tag notes-toggle" title="<%= todo.notes %>">备注</span><% } %>
+            </div>
+          </div>
+        </div>
+        <div class="todo-actions">
+          <button type="button" class="link-btn focus-btn" data-id="<%= todo.id %>" data-title="<%= todo.title %>" title="番茄钟专注">🍅</button>
+          <a href="/todos/<%= todo.id %>/edit" class="link-btn" title="编辑">✎</a>
+          <form method="POST" action="/todos/<%= todo.id %>/delete" onsubmit="return confirm('删除此任务？')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="link-btn danger" title="删除">🗑</button>
+          </form>
+        </div>
+      </li>
+      <% }) %>
+      <% if (todos.filter(t => !t.completed).length === 0) { %>
+      <li class="empty">没有待办任务，享受当下 🌤️</li>
+      <% } %>
+    </ul>
+  </section>
+
+  <section class="board-col done-col" data-status="done">
+    <div class="col-head">
+      <h2>已完成 <span class="col-count" id="done-count">0</span></h2>
+    </div>
+    <ul class="todo-list" id="done-list">
+      <% todos.filter(t => t.completed).forEach((todo, i) => { %>
+      <li class="todo-item done prio-<%= todo.priority %>" data-id="<%= todo.id %>" data-index="<%= i %>">
+        <div class="todo-main">
+          <input type="checkbox" class="batch-check" data-id="<%= todo.id %>" onclick="updateBatchBar()" aria-label="选择">
+          <form method="POST" action="/todos/<%= todo.id %>/toggle" class="toggle-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="check checked" title="取消完成">✓</button>
+          </form>
+          <div class="todo-text">
+            <span class="title"><%= todo.title %></span>
+            <div class="meta">
+              <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
+              <span class="tag prio prio-<%= todo.priority %>"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
+              <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>
+            </div>
+          </div>
+        </div>
+        <div class="todo-actions">
+          <form method="POST" action="/todos/<%= todo.id %>/delete" onsubmit="return confirm('删除此任务？')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="link-btn danger" title="删除">🗑</button>
+          </form>
+        </div>
+      </li>
+      <% }) %>
+      <% if (todos.filter(t => t.completed).length === 0) { %>
+      <li class="empty muted">完成的事项会显示在这里</li>
+      <% } %>
+    </ul>
+  </section>
+</div>
+
+<!-- 番茄钟浮层 -->
+<div class="pomodoro-overlay" id="pomodoro-overlay" style="display:none;">
+  <div class="pomodoro-box">
+    <div class="pomodoro-task" id="pomodoro-task-title"></div>
+    <div class="pomodoro-timer" id="pomodoro-timer">25:00</div>
+    <div class="pomodoro-controls">
+      <button type="button" id="pomodoro-toggle">开始</button>
+      <button type="button" id="pomodoro-reset">重置</button>
+      <button type="button" id="pomodoro-close">关闭</button>
+    </div>
+    <p class="hint">25 分钟专注 + 5 分钟休息</p>
+  </div>
+</div>
+
+<!-- 快捷键帮助浮层 -->
+<div class="shortcuts-overlay" id="shortcuts-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="shortcuts-box">
+    <h2>键盘快捷键</h2>
+    <ul class="shortcuts-list">
+      <li><kbd>N</kbd> 快速新建任务</li>
+      <li><kbd>/</kbd> 跳转搜索</li>
+      <li><kbd>J</kbd> / <kbd>K</kbd> 上下选择任务</li>
+      <li><kbd>Space</kbd> 切换选中任务完成状态</li>
+      <li><kbd>E</kbd> 编辑选中任务</li>
+      <li><kbd>X</kbd> 勾选任务加入批量</li>
+      <li><kbd>F</kbd> 对选中任务启动番茄钟</li>
+      <li><kbd>?</kbd> 显示/隐藏本帮助</li>
+      <li><kbd>Esc</kbd> 关闭浮层</li>
+    </ul>
+    <button type="button" onclick="document.getElementById('shortcuts-overlay').style.display='none'">知道了</button>
+  </div>
+</div>
+
+<!-- 语音/AI 解析确认弹窗 -->
+<div class="ai-confirm-overlay" id="ai-confirm-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="ai-confirm-box">
+    <h2 id="ai-confirm-title">AI 整理结果</h2>
+    <p id="ai-confirm-status" class="hint">正在解析...</p>
+    <form method="POST" action="/todos" id="ai-confirm-form" style="display:none;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>标题
+        <input type="text" name="title" id="ai-title" required>
+      </label>
+      <label>优先级
+        <select name="priority" id="ai-priority">
+          <option value="high">高</option>
+          <option value="medium" selected>中</option>
+          <option value="low">低</option>
+        </select>
+      </label>
+      <label>预计完成时间
+        <input type="time" name="dueTime" id="ai-dueTime">
+      </label>
+      <label>标签（逗号分隔）
+        <input type="text" name="tags" id="ai-tags">
+      </label>
+      <label>备注
+        <textarea name="notes" id="ai-notes" rows="2"></textarea>
+      </label>
+      <div class="btns">
+        <button type="submit">确认添加</button>
+        <button type="button" id="ai-confirm-cancel">取消</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- AI 重排建议确认弹窗 -->
+<div class="ai-confirm-overlay" id="reorder-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="ai-confirm-box">
+    <h2>AI 重排建议</h2>
+    <p id="reorder-status" class="hint">正在评估任务难度与截止时间...</p>
+    <div id="reorder-content" style="display:none;">
+      <p id="reorder-reason" class="hint" style="background:#f0f7ff;padding:10px;border-radius:8px;"></p>
+      <ol id="reorder-list" class="reorder-list"></ol>
+      <form method="POST" action="/todos/reorder" id="reorder-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div id="reorder-ids-container"></div>
+        <div class="btns">
+          <button type="submit">应用重排</button>
+          <button type="button" id="reorder-cancel">保持原顺序</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('_foot') %>

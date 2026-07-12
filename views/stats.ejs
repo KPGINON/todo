@@ -1,0 +1,64 @@
+<%- include('_head', { title: '统计' }) %>
+<h1>统计仪表盘</h1>
+
+<!-- 今日概览 -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value"><%= stats.todayDone %>/<%= stats.todayTotal %></div>
+    <div class="stat-label">今日完成</div>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: <%= stats.todayRate %>%"></div>
+    </div>
+    <div class="stat-sub"><%= stats.todayRate %>%</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-value"><%= stats.streak %></div>
+    <div class="stat-label">连续打卡天数</div>
+    <div class="stat-sub"><%= stats.streak > 0 ? '继续保持！' : '今天开始打卡吧' %></div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-value"><%= stats.totalArchived %></div>
+    <div class="stat-label">累计完成任务</div>
+    <div class="stat-sub">共 <%= stats.archiveDays %> 天有归档</div>
+  </div>
+</div>
+
+<!-- 近 7 天完成数柱状图 -->
+<div class="card">
+  <h2>近 7 天完成数</h2>
+  <% const maxCount = Math.max(1, ...stats.last7.map(d => d.count)); %>
+  <div class="bar-chart">
+    <% stats.last7.forEach(d => { %>
+    <div class="bar-col">
+      <div class="bar-value"><%= d.count %></div>
+      <div class="bar" style="height: <%= Math.round(d.count / maxCount * 120) %>px"></div>
+      <div class="bar-label"><%= d.date.slice(5) %></div>
+    </div>
+    <% }) %>
+  </div>
+</div>
+
+<!-- 标签分布 -->
+<div class="card">
+  <h2>标签分布（近 30 天）</h2>
+  <% if (stats.tagDist.length === 0) { %>
+    <p class="empty">暂无标签数据</p>
+  <% } else { %>
+    <% const maxTag = Math.max(...stats.tagDist.map(t => t[1])); %>
+    <ul class="tag-stats">
+      <% stats.tagDist.forEach(([tag, count]) => { %>
+      <li>
+        <span class="tag-name"><%= tag %></span>
+        <div class="tag-bar-wrap">
+          <div class="tag-bar" style="width: <%= Math.round(count / maxTag * 100) %>%"></div>
+        </div>
+        <span class="tag-count"><%= count %></span>
+      </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('_foot') %>

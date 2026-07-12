@@ -1,0 +1,41 @@
+<%- include('_head', { title: '设置' }) %>
+<h1>设置</h1>
+<% if (msg) { %><div class="msg"><%= msg %></div><% } %>
+
+<div class="card">
+  <h2>AI 智能重排配置</h2>
+  <p class="hint">填写 OpenAI 兼容接口信息，用于根据当日突发情况重排剩余任务。</p>
+  <form method="POST" action="/settings" class="settings-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Base URL
+      <input type="text" name="aiBaseUrl" value="<%= settings.aiBaseUrl %>" placeholder="https://api.openai.com/v1">
+    </label>
+    <label>API Key
+      <input type="password" name="aiApiKey" value="" placeholder="<%= settings.aiApiKey ? '已设置（留空则不修改）' : 'sk-...' %>">
+    </label>
+    <label>模型名称
+      <input type="text" name="aiModel" value="<%= settings.aiModel %>" placeholder="gpt-4o-mini / glm-4-flash / deepseek-chat">
+    </label>
+    <button type="submit">保存设置</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>数据备份</h2>
+  <p class="hint">导出全部数据为 JSON 文件，或在下方粘贴备份数据导入恢复。</p>
+  <a href="/settings/export" class="link-btn">导出数据（JSON）</a>
+  <form method="POST" action="/settings/import" class="import-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <textarea name="json" placeholder='粘贴导出的 JSON 数据...' rows="6"></textarea>
+    <button type="submit" class="danger" onclick="return confirm('导入会覆盖当前所有数据，确定继续？')">导入数据</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>账号</h2>
+  <form method="POST" action="/logout">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button type="submit" class="link-btn">退出登录</button>
+  </form>
+</div>
+<%- include('_foot') %>

@@ -1,0 +1,17 @@
+<%- include('_head', { title: '历史归档' }) %>
+<h1>历史归档</h1>
+<p class="hint">每次"日清"会把当天已完成任务归档至此。</p>
+<ul class="archive-list">
+  <% archives.forEach(a => { %>
+  <li>
+    <a href="/archive/<%= a.date %>" class="archive-item">
+      <span class="date"><%= a.date %></span>
+      <span class="count"><%= a.items.length %> 条已完成</span>
+    </a>
+  </li>
+  <% }) %>
+  <% if (archives.length === 0) { %>
+  <li class="empty">还没有归档记录。完成今天的任务后点"日清归档"试试。</li>
+  <% } %>
+</ul>
+<%- include('_foot') %>

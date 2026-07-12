@@ -1,0 +1,12 @@
+<%- include('_head', { title: '登录', showNav: false }) %>
+<div class="card login-card">
+  <h1><%= init ? '设置登录密码' : '登录' %></h1>
+  <p class="hint"><%= init ? '首次使用，请设置一个登录密码（单用户）。' : '请输入密码进入。' %></p>
+  <% if (error) { %><p class="error"><%= error %></p><% } %>
+  <form method="POST" action="/login">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="password" name="password" placeholder="密码" autofocus required>
+    <button type="submit"><%= init ? '设置并进入' : '登录' %></button>
+  </form>
+</div>
+<%- include('_foot') %>

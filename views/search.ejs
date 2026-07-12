@@ -1,0 +1,65 @@
+<%- include('_head', { title: '搜索' }) %>
+<h1>搜索</h1>
+
+<form method="GET" action="/search" class="search-form">
+  <input type="text" name="q" value="<%= q %>" placeholder="搜索任务标题、备注或标签..." autofocus>
+  <button type="submit">搜索</button>
+</form>
+
+<% if (q) { %>
+<div class="search-results">
+  <% const total = result.todos.length + result.archives.reduce((s,a) => s + a.items.length, 0); %>
+  <p class="hint">找到 <%= total %> 条结果（关键词：<%= q %>）</p>
+
+  <% if (result.todos.length > 0) { %>
+  <h2>当前任务（<%= result.todos.length %>）</h2>
+  <ul class="todo-list">
+    <% result.todos.forEach(todo => { %>
+    <li class="todo-item <%= todo.completed ? 'done' : '' %> prio-<%= todo.priority %>">
+      <div class="todo-main">
+        <span class="check <%= todo.completed ? 'checked' : '' %>"><%= todo.completed ? '✓' : '' %></span>
+        <div class="todo-text">
+          <span class="title"><%= todo.title %></span>
+          <div class="meta">
+            <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
+            <span class="tag prio"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
+            <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>
+            <span class="tag date"><%= todo.date %></span>
+          </div>
+          <% if (todo.notes) { %><p class="notes"><%= todo.notes %></p><% } %>
+        </div>
+      </div>
+    </li>
+    <% }) %>
+  </ul>
+  <% } %>
+
+  <% result.archives.forEach(arch => { %>
+  <h2><%= arch.date %> 归档（<%= arch.items.length %>）</h2>
+  <ul class="todo-list">
+    <% arch.items.forEach(todo => { %>
+    <li class="todo-item done prio-<%= todo.priority %>">
+      <div class="todo-main">
+        <span class="check checked">✓</span>
+        <div class="todo-text">
+          <span class="title"><%= todo.title %></span>
+          <div class="meta">
+            <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
+            <span class="tag prio"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
+            <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>
+          </div>
+          <% if (todo.notes) { %><p class="notes"><%= todo.notes %></p><% } %>
+        </div>
+      </div>
+    </li>
+    <% }) %>
+  </ul>
+  <% }) %>
+
+  <% if (total === 0) { %>
+  <p class="empty">没有找到匹配的任务。</p>
+  <% } %>
+</div>
+<% } %>
+
+<%- include('_foot') %>
