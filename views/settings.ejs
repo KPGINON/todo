@@ -3,22 +3,69 @@
 <% if (msg) { %><div class="msg"><%= msg %></div><% } %>
 
 <div class="card">
-  <h2>AI 智能重排配置</h2>
-  <p class="hint">填写 OpenAI 兼容接口信息，用于根据当日突发情况重排剩余任务。</p>
+  <h2>AI 接口配置
+    <% if (settings.aiApiKey) { %>
+      <span class="badge badge-ok">已配置</span>
+    <% } else { %>
+      <span class="badge badge-warn">未配置</span>
+    <% } %>
+  </h2>
+  <p class="hint">OpenAI 兼容接口，用于智能重排、语音解析等功能。Key 加密存储于服务端，不会回显。</p>
   <form method="POST" action="/settings" class="settings-form">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <label>Base URL
       <input type="text" name="aiBaseUrl" value="<%= settings.aiBaseUrl %>" placeholder="https://api.openai.com/v1">
     </label>
     <label>API Key
-      <input type="password" name="aiApiKey" value="" placeholder="<%= settings.aiApiKey ? '已设置（留空则不修改）' : 'sk-...' %>">
+      <input type="password" name="aiApiKey" value="" autocomplete="off" placeholder="<%= settings.aiApiKey ? '已设置（留空则不修改）' : 'sk-...' %>">
     </label>
     <label>模型名称
       <input type="text" name="aiModel" value="<%= settings.aiModel %>" placeholder="gpt-4o-mini / glm-4-flash / deepseek-chat">
     </label>
-    <button type="submit">保存设置</button>
+    <div class="btns">
+      <button type="submit">保存设置</button>
+      <button type="button" id="ai-test-btn">测试连接</button>
+      <% if (settings.aiApiKey) { %>
+      <button type="submit" name="action" value="clear-key" class="danger" formnovalidate onclick="return confirm('确定清除 API Key？清除后 AI 功能将不可用。')">清除 Key</button>
+      <% } %>
+    </div>
   </form>
+  <div id="ai-test-result" class="ai-test-result" hidden></div>
 </div>
+<script>
+// 测试 AI 连接：仅当按钮存在时绑定
+  const btn = document.getElementById('ai-test-btn');
+  if (!btn) return;
+  const csrfInput = document.querySelector('input[name="_csrf"]');
+  const box = document.getElementById('ai-test-result');
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    btn.textContent = '测试中...';
+    box.hidden = false;
+    box.className = 'ai-test-result testing';
+    box.textContent = '正在请求 AI 接口...';
+    fetch('/settings/ai/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: '_csrf=' + encodeURIComponent(csrfInput ? csrfInput.value : '')
+    }).then(r => r.json()).then(data => {
+      if (data.ok) {
+        box.className = 'ai-test-result ok';
+        box.textContent = '连接成功，模型：' + data.model;
+      } else {
+        box.className = 'ai-test-result fail';
+        box.textContent = '失败：' + (data.error || '未知错误');
+      }
+    }).catch(e => {
+      box.className = 'ai-test-result fail';
+      box.textContent = '请求异常：' + e.message;
+    }).finally(() => {
+      btn.disabled = false;
+      btn.textContent = '测试连接';
+    });
+  });
+})();
+</script>
 
 <div class="card">
   <h2>数据备份</h2>

@@ -227,16 +227,28 @@
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    // continuous=true：持续识别，不会因说话停顿就自动结束
+    recognition.continuous = true;
+    // interimResults=true：实时返回中间结果，便于累积完整内容
+    recognition.interimResults = true;
   }
+
+  // 累积的识别文本 + 是否由用户主动停止 + 静默自动停止计时器
+  let finalTranscript = '';
+  let stoppedManually = false;
+  let silenceTimer = null;
+  const SILENCE_MS = 1500; // 静默 1.5 秒判定说完
 
   // 打开 AI 确认弹窗
   function openAiConfirm() {
     const overlay = document.getElementById('ai-confirm-overlay');
     const status = document.getElementById('ai-confirm-status');
-    const form = document.getElementById('ai-confirm-form');
-    form.style.display = 'none';
+    const listEl = document.getElementById('ai-confirm-list');
+    const actionsEl = document.getElementById('ai-confirm-actions');
+    // 重置为初始状态：隐藏列表和按钮，清空之前的卡片
+    listEl.innerHTML = '';
+    listEl.style.display = 'none';
+    actionsEl.style.display = 'none';
     status.textContent = '正在解析...';
     status.style.color = '';
     overlay.style.display = 'flex';
@@ -245,7 +257,8 @@
   // 调用后端 AI 解析接口
   function callAiParse(transcript) {
     const status = document.getElementById('ai-confirm-status');
-    const form = document.getElementById('ai-confirm-form');
+    const listEl = document.getElementById('ai-confirm-list');
+    const actionsEl = document.getElementById('ai-confirm-actions');
     const csrf = document.querySelector('input[name="_csrf"]').value;
 
     fetch('/ai/parse-todo', {
@@ -257,24 +270,70 @@
     })
       .then(r => r.json())
       .then(data => {
+        console.log('[AI parse] response:', JSON.stringify(data));
         if (!data.ok) {
           status.textContent = '解析失败：' + data.error;
           status.style.color = '#ff3b30';
           return;
         }
-        const todo = data.todo;
-        document.getElementById('ai-title').value = todo.title;
-        document.getElementById('ai-priority').value = todo.priority;
-        document.getElementById('ai-dueTime').value = todo.dueTime || '';
-        document.getElementById('ai-tags').value = (todo.tags || []).join(', ');
-        document.getElementById('ai-notes').value = todo.notes || '';
-        status.textContent = '已从你的描述中提取以下信息，确认无误后添加：';
-        form.style.display = 'flex';
+        const todos = data.todos || [];
+        console.log('[AI parse] todos count:', todos.length, 'todos:', JSON.stringify(todos));
+        if (todos.length === 0) {
+          status.textContent = '未解析到任务，请重试';
+          status.style.color = '#ff3b30';
+          return;
+        }
+        status.textContent = '共识别到 ' + todos.length + ' 个任务，确认无误后点"全部添加"：';
+        status.style.color = '';
+        renderAiTodoCards(todos, listEl);
+        listEl.style.display = 'flex';
+        actionsEl.style.display = 'flex';
       })
       .catch(err => {
         status.textContent = '请求失败：' + err.message;
         status.style.color = '#ff3b30';
       });
+  }
+
+  // 渲染多个可编辑任务卡片
+  function renderAiTodoCards(todos, container) {
+    container.innerHTML = '';
+    todos.forEach((todo, idx) => {
+      const card = document.createElement('div');
+      card.className = 'ai-todo-card';
+      card.innerHTML =
+        '<div class="card-head"><span>任务 ' + (idx + 1) + '</span><button type="button" class="del-btn" title="删除此任务">×</button></div>' +
+        '<label>标题<input type="text" class="t-title" value="' + escapeAttr(todo.title) + '" required></label>' +
+        '<label>优先级<select class="t-priority">' +
+          '<option value="high"' + (todo.priority === 'high' ? ' selected' : '') + '>高</option>' +
+          '<option value="medium"' + (todo.priority === 'medium' ? ' selected' : '') + '>中</option>' +
+          '<option value="low"' + (todo.priority === 'low' ? ' selected' : '') + '>低</option>' +
+        '</select></label>' +
+        '<label>预计完成时间<input type="time" class="t-dueTime" value="' + escapeAttr(todo.dueTime || '') + '"></label>' +
+        '<label>标签（逗号分隔）<input type="text" class="t-tags" value="' + escapeAttr((todo.tags || []).join(', ')) + '"></label>' +
+        '<label>备注<textarea class="t-notes" rows="2">' + escapeHtml(todo.notes || '') + '</textarea></label>';
+      // 删除单个任务卡片
+      card.querySelector('.del-btn').addEventListener('click', function () {
+        card.remove();
+        // 重新编号
+        container.querySelectorAll('.ai-todo-card').forEach((c, i) => {
+          c.querySelector('.card-head span').textContent = '任务 ' + (i + 1);
+        });
+        // 全删完则隐藏按钮
+        if (container.querySelectorAll('.ai-todo-card').length === 0) {
+          document.getElementById('ai-confirm-actions').style.display = 'none';
+          document.getElementById('ai-confirm-status').textContent = '已删除所有任务，可关闭弹窗或重新输入。';
+        }
+      });
+      container.appendChild(card);
+    });
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   // 语音按钮
@@ -290,28 +349,65 @@
         return;
       }
       if (isRecording) {
+        // 录音中再点：立即停止并解析
+        stoppedManually = true;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
         recognition.stop();
         return;
       }
+      // 开始录音：重置状态
+      finalTranscript = '';
+      stoppedManually = false;
       voiceBtn.classList.add('recording');
       voiceBtn.textContent = '⏹';
       isRecording = true;
       openAiConfirm();
-      document.getElementById('ai-confirm-status').textContent = '正在聆听...请说话';
+      document.getElementById('ai-confirm-status').textContent = '正在聆听...说完会自动结束';
 
       recognition.onresult = function (event) {
-        const transcript = event.results[0][0].transcript;
-        document.getElementById('ai-confirm-status').textContent = '听到："' + transcript + '"，正在用 AI 整理...';
-        callAiParse(transcript);
+        // 只处理新增的 result（event.resultIndex 之后的），避免重复累积
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const r = event.results[i];
+          if (r.isFinal) {
+            finalTranscript += r[0].transcript;
+          } else {
+            interim += r[0].transcript;
+          }
+        }
+        // 实时回显：用 finalTranscript + 当前 interim（不累积 interim，避免重复）
+        const display = (finalTranscript + interim).trim();
+        if (display) {
+          document.getElementById('ai-confirm-status').textContent = '听到："' + display + '"';
+        }
+        // 重置静默计时器：有新内容就重新计时
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          if (isRecording && finalTranscript.trim()) {
+            stoppedManually = true; // 自动停止也走解析流程
+            recognition.stop();
+          }
+        }, SILENCE_MS);
       };
       recognition.onerror = function (event) {
         document.getElementById('ai-confirm-status').textContent = '语音识别失败：' + event.error;
         document.getElementById('ai-confirm-status').style.color = '#ff3b30';
+        stoppedManually = false;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
       };
       recognition.onend = function () {
         voiceBtn.classList.remove('recording');
         voiceBtn.textContent = '🎤';
         isRecording = false;
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+        // 有内容就触发 AI 解析（无论主动停止还是静默自动停止）
+        if (finalTranscript.trim()) {
+          document.getElementById('ai-confirm-status').textContent = '听到："' + finalTranscript.trim() + '"，正在用 AI 整理...';
+          callAiParse(finalTranscript.trim());
+        } else {
+          document.getElementById('ai-confirm-status').textContent = '未识别到内容，请重试';
+        }
+        stoppedManually = false;
       };
       recognition.start();
     });
@@ -336,6 +432,59 @@
   if (aiCancel) {
     aiCancel.addEventListener('click', function () {
       document.getElementById('ai-confirm-overlay').style.display = 'none';
+    });
+  }
+
+  // 全部添加按钮：收集所有卡片数据，逐个 POST 到 /todos，完成后跳转
+  const aiAddBtn = document.getElementById('ai-confirm-add');
+  if (aiAddBtn) {
+    aiAddBtn.addEventListener('click', async function () {
+      const cards = document.querySelectorAll('#ai-confirm-list .ai-todo-card');
+      if (cards.length === 0) return;
+      const status = document.getElementById('ai-confirm-status');
+      const actionsEl = document.getElementById('ai-confirm-actions');
+      const csrf = document.querySelector('input[name="_csrf"]').value;
+
+      // 收集所有卡片字段
+      const todos = [];
+      for (const card of cards) {
+        const title = card.querySelector('.t-title').value.trim();
+        if (!title) continue; // 跳过空标题
+        todos.push({
+          title,
+          priority: card.querySelector('.t-priority').value,
+          dueTime: card.querySelector('.t-dueTime').value,
+          tags: card.querySelector('.t-tags').value,
+          notes: card.querySelector('.t-notes').value
+        });
+      }
+      if (todos.length === 0) {
+        status.textContent = '没有有效任务（标题不能为空）';
+        status.style.color = '#ff3b30';
+        return;
+      }
+
+      // 禁用按钮，显示进度
+      actionsEl.style.pointerEvents = 'none';
+      aiAddBtn.textContent = '添加中...';
+      status.style.color = '';
+      for (let i = 0; i < todos.length; i++) {
+        status.textContent = '正在添加 ' + (i + 1) + '/' + todos.length + '...';
+        const params = new URLSearchParams();
+        params.append('_csrf', csrf);
+        params.append('title', todos[i].title);
+        params.append('priority', todos[i].priority);
+        if (todos[i].dueTime) params.append('dueTime', todos[i].dueTime);
+        if (todos[i].tags) params.append('tags', todos[i].tags);
+        if (todos[i].notes) params.append('notes', todos[i].notes);
+        try {
+          await fetch('/todos', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString(), redirect: 'manual' });
+        } catch (e) {
+          // 单个失败不中断，继续添加其余
+        }
+      }
+      // 完成后刷新 today 页（多任务添加不触发单个重排建议）
+      window.location.href = '/';
     });
   }
 

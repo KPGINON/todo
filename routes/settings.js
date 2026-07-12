@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const store = require('../lib/store');
+const ai = require('../lib/ai');
 
 // 设置页
 router.get('/', (req, res) => {
@@ -8,8 +9,13 @@ router.get('/', (req, res) => {
   res.render('settings', { settings, msg: req.query.msg || '' });
 });
 
-// 保存设置
+// 保存设置（兼清除 API Key 动作）
 router.post('/', (req, res) => {
+  // 清除 Key 动作：通过按钮 name=action value=clear-key 触发
+  if (req.body.action === 'clear-key') {
+    store.setSettings({ aiApiKey: '' });
+    return res.redirect('/settings?msg=' + encodeURIComponent('API Key 已清除'));
+  }
   const { aiBaseUrl, aiApiKey, aiModel } = req.body;
   const patch = {
     aiBaseUrl: (aiBaseUrl || '').trim(),
@@ -21,6 +27,16 @@ router.post('/', (req, res) => {
   }
   store.setSettings(patch);
   res.redirect('/settings?msg=' + encodeURIComponent('设置已保存'));
+});
+
+// 测试 AI 连接（异步返回 JSON，供前端展示结果）
+router.post('/ai/test', async (req, res) => {
+  try {
+    const result = await ai.testConnection();
+    res.json({ ok: true, model: result.model });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // 导出全部数据为 JSON 文件下载

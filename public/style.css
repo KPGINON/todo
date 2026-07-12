@@ -321,6 +321,16 @@ details[open] summary { margin-bottom: 14px; }
 .settings-form { display: flex; flex-direction: column; gap: 12px; }
 .settings-form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-2); }
 
+/* 设置页：状态徽章、行内表单、测试连接结果 */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; margin-left: 8px; vertical-align: middle; }
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-warn { background: #fff3e0; color: #ef6c00; }
+.inline-form { display: inline; margin: 0; }
+.ai-test-result { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 14px; }
+.ai-test-result.testing { background: #eef6ff; color: var(--accent); }
+.ai-test-result.ok { background: #e8f5e9; color: #2e7d32; }
+.ai-test-result.fail { background: #fff0f0; color: var(--red); }
+
 /* ========== 归档 ========== */
 .archive-list { list-style: none; }
 .archive-list li { margin-bottom: 8px; }
@@ -428,13 +438,17 @@ kbd {
   text-align: center;
 }
 
-.ai-confirm-box { padding: 28px; max-width: 420px; width: 100%; }
+.ai-confirm-box { padding: 28px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; }
 .ai-confirm-box h2 { margin-bottom: 8px; }
 #ai-confirm-status { margin-bottom: 16px; min-height: 20px; }
-#ai-confirm-form { display: none; flex-direction: column; gap: 12px; }
-#ai-confirm-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
-#ai-confirm-form .btns { display: flex; gap: 12px; margin-top: 8px; }
-#ai-confirm-form .btns button { flex: 1; }
+#ai-confirm-list { display: none; flex-direction: column; gap: 14px; }
+.ai-todo-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; display: flex; flex-direction: column; gap: 8px; background: #fbfbfd; }
+.ai-todo-card .card-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-2); }
+.ai-todo-card .card-head .del-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1; }
+.ai-todo-card label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
+.ai-todo-card input, .ai-todo-card select, .ai-todo-card textarea { font-size: 14px; }
+#ai-confirm-actions { display: none; gap: 12px; margin-top: 12px; }
+#ai-confirm-actions button { flex: 1; }
 #ai-confirm-cancel { background: #e0e0e5; color: var(--text); }
 
 /* 重排建议列表 */

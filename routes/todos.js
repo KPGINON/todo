@@ -157,8 +157,8 @@ router.post('/ai/parse-todo', async (req, res) => {
     return res.json({ ok: false, error: '内容为空' });
   }
   try {
-    const todo = await ai.parseTodo(transcript);
-    res.json({ ok: true, todo });
+    const todos = await ai.parseTodo(transcript);
+    res.json({ ok: true, todos });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }

@@ -196,32 +196,11 @@
   <div class="ai-confirm-box">
     <h2 id="ai-confirm-title">AI 整理结果</h2>
     <p id="ai-confirm-status" class="hint">正在解析...</p>
-    <form method="POST" action="/todos" id="ai-confirm-form" style="display:none;">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label>标题
-        <input type="text" name="title" id="ai-title" required>
-      </label>
-      <label>优先级
-        <select name="priority" id="ai-priority">
-          <option value="high">高</option>
-          <option value="medium" selected>中</option>
-          <option value="low">低</option>
-        </select>
-      </label>
-      <label>预计完成时间
-        <input type="time" name="dueTime" id="ai-dueTime">
-      </label>
-      <label>标签（逗号分隔）
-        <input type="text" name="tags" id="ai-tags">
-      </label>
-      <label>备注
-        <textarea name="notes" id="ai-notes" rows="2"></textarea>
-      </label>
-      <div class="btns">
-        <button type="submit">确认添加</button>
-        <button type="button" id="ai-confirm-cancel">取消</button>
-      </div>
-    </form>
+    <div id="ai-confirm-list" style="display:none;"></div>
+    <div class="btns" id="ai-confirm-actions" style="display:none;">
+      <button type="button" id="ai-confirm-add">全部添加</button>
+      <button type="button" id="ai-confirm-cancel">取消</button>
+    </div>
   </div>
 </div>
 
