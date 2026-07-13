@@ -21,6 +21,7 @@
         <div class="todo-text">
           <span class="title"><%= todo.title %></span>
           <div class="meta">
+            <% if (todo.dueDate) { %><span class="tag due">📅 <%= todo.dueDate %></span><% } %>
             <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
             <span class="tag prio"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
             <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>
@@ -44,6 +45,7 @@
         <div class="todo-text">
           <span class="title"><%= todo.title %></span>
           <div class="meta">
+            <% if (todo.dueDate) { %><span class="tag due">📅 <%= todo.dueDate %></span><% } %>
             <% if (todo.dueTime) { %><span class="tag due">⏰ <%= todo.dueTime %></span><% } %>
             <span class="tag prio"><%= {high:'高',medium:'中',low:'低'}[todo.priority] %></span>
             <% todo.tags.forEach(tg => { %><span class="tag"><%= tg %></span><% }) %>

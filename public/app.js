@@ -270,14 +270,12 @@
     })
       .then(r => r.json())
       .then(data => {
-        console.log('[AI parse] response:', JSON.stringify(data));
         if (!data.ok) {
           status.textContent = '解析失败：' + data.error;
           status.style.color = '#ff3b30';
           return;
         }
         const todos = data.todos || [];
-        console.log('[AI parse] todos count:', todos.length, 'todos:', JSON.stringify(todos));
         if (todos.length === 0) {
           status.textContent = '未解析到任务，请重试';
           status.style.color = '#ff3b30';
@@ -309,6 +307,7 @@
           '<option value="medium"' + (todo.priority === 'medium' ? ' selected' : '') + '>中</option>' +
           '<option value="low"' + (todo.priority === 'low' ? ' selected' : '') + '>低</option>' +
         '</select></label>' +
+        '<label>截止日期<input type="date" class="t-dueDate" value="' + escapeAttr(todo.dueDate || '') + '"></label>' +
         '<label>预计完成时间<input type="time" class="t-dueTime" value="' + escapeAttr(todo.dueTime || '') + '"></label>' +
         '<label>标签（逗号分隔）<input type="text" class="t-tags" value="' + escapeAttr((todo.tags || []).join(', ')) + '"></label>' +
         '<label>备注<textarea class="t-notes" rows="2">' + escapeHtml(todo.notes || '') + '</textarea></label>';
@@ -453,6 +452,7 @@
         todos.push({
           title,
           priority: card.querySelector('.t-priority').value,
+          dueDate: card.querySelector('.t-dueDate').value,
           dueTime: card.querySelector('.t-dueTime').value,
           tags: card.querySelector('.t-tags').value,
           notes: card.querySelector('.t-notes').value
@@ -474,6 +474,7 @@
         params.append('_csrf', csrf);
         params.append('title', todos[i].title);
         params.append('priority', todos[i].priority);
+        if (todos[i].dueDate) params.append('dueDate', todos[i].dueDate);
         if (todos[i].dueTime) params.append('dueTime', todos[i].dueTime);
         if (todos[i].tags) params.append('tags', todos[i].tags);
         if (todos[i].notes) params.append('notes', todos[i].notes);

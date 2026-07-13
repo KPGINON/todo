@@ -13,6 +13,14 @@ router.get('/', (req, res) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
     const pa = order[a.priority] ?? 1, pb = order[b.priority] ?? 1;
     if (pa !== pb) return pa - pb;
+    // 先按截止日期排序，再按时间排序
+    if (a.dueDate && b.dueDate) {
+      if (a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+    } else if (a.dueDate) {
+      return -1;
+    } else if (b.dueDate) {
+      return 1;
+    }
     if (a.dueTime && b.dueTime) return a.dueTime.localeCompare(b.dueTime);
     if (a.dueTime) return -1;
     if (b.dueTime) return 1;
@@ -23,11 +31,12 @@ router.get('/', (req, res) => {
 
 // 新增
 router.post('/todos', (req, res) => {
-  const { title, priority, dueTime, tags, notes } = req.body;
+  const { title, priority, dueDate, dueTime, tags, notes } = req.body;
   if (!title || !title.trim()) return res.redirect('/?msg=标题不能为空');
   const todo = store.createTodo({
     title,
     priority: priority || 'medium',
+    dueDate: dueDate || '',
     dueTime: dueTime || '',
     tags: tags || '',
     notes: notes || ''
@@ -73,10 +82,11 @@ router.get('/todos/:id/edit', (req, res) => {
 });
 
 router.post('/todos/:id/edit', (req, res) => {
-  const { title, priority, dueTime, tags, notes } = req.body;
+  const { title, priority, dueDate, dueTime, tags, notes } = req.body;
   store.updateTodo(req.params.id, {
     title: (title || '').trim(),
     priority: priority || 'medium',
+    dueDate: dueDate || '',
     dueTime: dueTime || '',
     tags: store.parseTags(tags),
     notes: notes || ''
