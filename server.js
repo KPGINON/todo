@@ -4,6 +4,12 @@ const path = require('path');
 
 const store = require('./lib/store');
 const auth = require('./lib/auth');
+const { connectDB } = require('./lib/database');
+
+const app = express();
+
+// 连接数据库
+connectDB().catch(console.error);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +28,8 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+// JSON body 提高到 10mb，截图排程需上传 base64 图片
+app.use(express.json({ limit: '10mb' }));
 
 // HTTPS 强制重定向：公网部署时，所有 HTTP 请求 301 跳转到 HTTPS
 if (FORCE_HTTPS) {
@@ -74,6 +81,9 @@ store.carryOver();
 
 // 路由
 app.use('/', require('./routes/auth'));
+app.use('/', require('./routes/auth'));
+app.use('/login', require('./routes/todos'));
+app.use('/register', require('./routes/todos'));
 app.use('/', auth.requireAuth, require('./routes/todos'));
 app.use('/archive', auth.requireAuth, require('./routes/archive'));
 app.use('/search', auth.requireAuth, require('./routes/search'));

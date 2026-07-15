@@ -2,6 +2,94 @@ const express = require('express');
 const router = express.Router();
 const store = require('../lib/store');
 const ai = require('../lib/ai');
+const { connectDB } = require('../lib/database');
+const { checkRateLimit, recordFailedLogin, clearFailedLogin } = require('../lib/auth');
+
+// 登录用户
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const ip = req.ip;
+
+  if (!username || !password) {
+    return res.render('login', { error: '用户名和密码都是必填的' });
+  }
+
+  try {
+    const db = await connectDB();
+    const users = db.collection('users');
+
+    // 查找用户
+    const user = await users.findOne({ username });
+    if (!user) {
+      // 记录失败登录
+      recordFailedLogin(ip);
+      return res.render('login', { error: '用户名或密码错误' });
+    }
+
+    // 验证密码
+    const bcrypt = require('bcrypt');
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      // 记录失败登录
+      recordFailedLogin(ip);
+      return res.render('login', { error: '用户名或密码错误' });
+    }
+
+    // 登录成功，清除失败记录并设置会话
+    clearFailedLogin(ip);
+    req.session.userId = user._id;
+    req.session.username = user.username;
+    req.session.authenticated = true;
+
+    res.redirect('/today');
+  } catch (error) {
+    console.error('登录失败:', error);
+    res.render('login', { error: '登录失败，请稍后重试' });
+  }
+});
+
+// 注册新用户
+router.post('/register', async (req, res) => {
+  const { username, password, confirmPassword } = req.body;
+
+  // 验证输入
+  if (!username || !password || !confirmPassword) {
+    return res.render('register', { error: '所有字段都是必填的' });
+  }
+
+  if (password !== confirmPassword) {
+    return res.render('register', { error: '两次输入的密码不一致' });
+  }
+
+  if (password.length < 6) {
+    return res.render('register', { error: '密码至少需要6个字符' });
+  }
+
+  try {
+    const db = await connectDB();
+    const users = db.collection('users');
+
+    // 检查用户名是否已存在
+    const existingUser = await users.findOne({ username });
+    if (existingUser) {
+      return res.render('register', { error: '用户名已被占用' });
+    }
+
+    // 创建新用户
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await users.insertOne({
+      username,
+      password: hashedPassword,
+      createdAt: new Date()
+    });
+
+    res.redirect('/login?msg=' + encodeURIComponent('注册成功，请登录'));
+  } catch (error) {
+    console.error('注册失败:', error);
+    res.render('register', { error: '注册失败，请稍后重试' });
+  }
+});
 
 // 设置页
 router.get('/', (req, res) => {
@@ -16,10 +104,11 @@ router.post('/', (req, res) => {
     store.setSettings({ aiApiKey: '' });
     return res.redirect('/settings?msg=' + encodeURIComponent('API Key 已清除'));
   }
-  const { aiBaseUrl, aiApiKey, aiModel } = req.body;
+  const { aiBaseUrl, aiApiKey, aiModel, visionModel } = req.body;
   const patch = {
     aiBaseUrl: (aiBaseUrl || '').trim(),
-    aiModel: (aiModel || '').trim()
+    aiModel: (aiModel || '').trim(),
+    visionModel: (visionModel || '').trim()
   };
   // 仅在用户填写了新 key 时才更新，避免掩码提交覆盖原值
   if (aiApiKey && aiApiKey.trim()) {

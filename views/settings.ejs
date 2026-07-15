@@ -22,6 +22,9 @@
     <label>模型名称
       <input type="text" name="aiModel" value="<%= settings.aiModel %>" placeholder="gpt-4o-mini / glm-4-flash / deepseek-chat">
     </label>
+    <label>图像识别模型（用于截图排程，需支持 vision）
+      <input type="text" name="visionModel" value="<%= settings.visionModel %>" placeholder="gpt-4o / glm-4v / 留空则回退到上面的模型">
+    </label>
     <div class="btns">
       <button type="submit">保存设置</button>
       <button type="button" id="ai-test-btn">测试连接</button>

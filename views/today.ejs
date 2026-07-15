@@ -8,6 +8,7 @@
   <div class="page-tools">
     <button type="button" class="tool-btn" id="tool-daily-clear" title="日清归档">⊟ 日清</button>
     <button type="button" class="tool-btn" id="tool-add-detail" title="带详情新建">+ 详情新建</button>
+    <button type="button" class="tool-btn" id="tool-screenshot" title="粘贴或拖入截图，AI 识别任务并排程">🖼 截图排程</button>
   </div>
 </div>
 
@@ -110,7 +111,6 @@
           </div>
         </div>
         <div class="todo-actions">
-          <button type="button" class="link-btn focus-btn" data-id="<%= todo.id %>" data-title="<%= todo.title %>" title="番茄钟专注">🍅</button>
           <a href="/todos/<%= todo.id %>/edit" class="link-btn" title="编辑">✎</a>
           <form method="POST" action="/todos/<%= todo.id %>/delete" onsubmit="return confirm('删除此任务？')">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -163,20 +163,6 @@
   </section>
 </div>
 
-<!-- 番茄钟浮层 -->
-<div class="pomodoro-overlay" id="pomodoro-overlay" style="display:none;">
-  <div class="pomodoro-box">
-    <div class="pomodoro-task" id="pomodoro-task-title"></div>
-    <div class="pomodoro-timer" id="pomodoro-timer">25:00</div>
-    <div class="pomodoro-controls">
-      <button type="button" id="pomodoro-toggle">开始</button>
-      <button type="button" id="pomodoro-reset">重置</button>
-      <button type="button" id="pomodoro-close">关闭</button>
-    </div>
-    <p class="hint">25 分钟专注 + 5 分钟休息</p>
-  </div>
-</div>
-
 <!-- 快捷键帮助浮层 -->
 <div class="shortcuts-overlay" id="shortcuts-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div class="shortcuts-box">
@@ -188,7 +174,6 @@
       <li><kbd>Space</kbd> 切换选中任务完成状态</li>
       <li><kbd>E</kbd> 编辑选中任务</li>
       <li><kbd>X</kbd> 勾选任务加入批量</li>
-      <li><kbd>F</kbd> 对选中任务启动番茄钟</li>
       <li><kbd>?</kbd> 显示/隐藏本帮助</li>
       <li><kbd>Esc</kbd> 关闭浮层</li>
     </ul>
@@ -209,24 +194,36 @@
   </div>
 </div>
 
-<!-- AI 重排建议确认弹窗 -->
-<div class="ai-confirm-overlay" id="reorder-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-  <div class="ai-confirm-box">
-    <h2>AI 重排建议</h2>
-    <p id="reorder-status" class="hint">正在评估任务难度与截止时间...</p>
-    <div id="reorder-content" style="display:none;">
-      <p id="reorder-reason" class="hint" style="background:#f0f7ff;padding:10px;border-radius:8px;"></p>
-      <ol id="reorder-list" class="reorder-list"></ol>
-      <form method="POST" action="/todos/reorder" id="reorder-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <div id="reorder-ids-container"></div>
-        <div class="btns">
-          <button type="submit">应用重排</button>
-          <button type="button" id="reorder-cancel">保持原顺序</button>
-        </div>
-      </form>
+<!-- 截图排程浮层：粘贴/拖入/上传截图，AI 识别任务并排程 -->
+<div class="ai-confirm-overlay" id="screenshot-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="ai-confirm-box" style="max-width:560px;">
+    <h2>截图排程</h2>
+    <p id="screenshot-status" class="hint">粘贴截图（Ctrl+V）、拖入图片或点击选择文件。AI 会识别其中的任务并结合现有任务排程。</p>
+    <div id="screenshot-drop" class="screenshot-drop">
+      <input type="file" id="screenshot-file" accept="image/*" hidden>
+      <div class="screenshot-drop-hint">📋 粘贴 / 拖入图片 / 点击选择</div>
+      <img id="screenshot-preview" style="display:none;" alt="截图预览">
+    </div>
+    <div id="screenshot-result" style="display:none;">
+      <p id="screenshot-reason" class="hint" style="background:#f0f7ff;padding:10px;border-radius:8px;"></p>
+      <h3 style="margin:12px 0 6px;font-size:15px;">识别到的新任务（可编辑/删除）</h3>
+      <div id="screenshot-cards"></div>
+      <h3 style="margin:12px 0 6px;font-size:15px;">排程后的顺序</h3>
+      <ol id="screenshot-order" class="reorder-sched-list"></ol>
+    </div>
+    <div class="btns" id="screenshot-actions" style="display:none;">
+      <button type="button" id="screenshot-analyze">分析</button>
+      <button type="button" id="screenshot-apply" style="display:none;">确认并排程</button>
+      <button type="button" id="screenshot-cancel">取消</button>
     </div>
   </div>
+</div>
+
+<!-- AI 重排结果提示条（新增任务后自动触发，可撤销） -->
+<div id="reorder-toast" style="display:none;">
+  <span id="reorder-toast-text"></span>
+  <button type="button" id="reorder-undo">撤销</button>
+  <button type="button" id="reorder-dismiss" aria-label="关闭">✕</button>
 </div>
 
 <%- include('_foot') %>

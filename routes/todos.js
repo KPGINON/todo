@@ -9,11 +9,10 @@ router.get('/', (req, res) => {
   const todos = store.listTodos(today);
   // 按优先级排序辅助
   const order = { high: 0, medium: 1, low: 2 };
-  todos.sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+  // 默认排序规则：优先级 → 截止日期 → 截止时间 → 创建时间
+  const byDefault = (a, b) => {
     const pa = order[a.priority] ?? 1, pb = order[b.priority] ?? 1;
     if (pa !== pb) return pa - pb;
-    // 先按截止日期排序，再按时间排序
     if (a.dueDate && b.dueDate) {
       if (a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
     } else if (a.dueDate) {
@@ -25,8 +24,16 @@ router.get('/', (req, res) => {
     if (a.dueTime) return -1;
     if (b.dueTime) return 1;
     return a.createdAt.localeCompare(b.createdAt);
+  };
+  // 手动/AI 排过序的任务（有 order 字段）按 order 升序在前，其余按默认规则追加在后；
+  // 已完成统一沉底，组内保持上述顺序。
+  const withOrder = todos.filter(t => typeof t.order === 'number').sort((a, b) => a.order - b.order);
+  const noOrder = todos.filter(t => typeof t.order !== 'number').sort(byDefault);
+  const sorted = [...withOrder, ...noOrder].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    return 0;
   });
-  res.render('today', { todos, today, msg: req.query.msg || '' });
+  res.render('today', { todos: sorted, today, msg: req.query.msg || '' });
 });
 
 // 新增
@@ -169,6 +176,82 @@ router.post('/ai/parse-todo', async (req, res) => {
   try {
     const todos = await ai.parseTodo(transcript);
     res.json({ ok: true, todos });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// 截图排程 - 第一步：分析截图，返回识别出的新任务与整体排程建议（不创建任何任务）
+// 请求体：{ image: base64（无 data URL 前缀）, mimeType: 'image/png' }
+// 返回：{ ok, newTodos, order, existing, reasoning }
+//   - order 含 "new-N" 临时引用（对应 newTodos 下标）与已有任务 id
+//   - existing 为 { id: title } 映射，供前端展示完整排程
+router.post('/ai/schedule-screenshot', async (req, res) => {
+  const image = req.body.image;
+  const mimeType = req.body.mimeType || 'image/png';
+  if (!image || typeof image !== 'string' || image.length < 100) {
+    return res.json({ ok: false, error: '未提供有效的截图' });
+  }
+  try {
+    const today = store.today();
+    const existing = store.listTodos(today).filter(t => !t.completed);
+    const result = await ai.analyzeScreenshot(image, mimeType, existing);
+    const existingMap = {};
+    existing.forEach(t => { existingMap[t.id] = t.title; });
+    res.json({
+      ok: true,
+      newTodos: result.newTodos,
+      order: result.order,
+      existing: existingMap,
+      reasoning: result.reasoning || ''
+    });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// 截图排程 - 第二步：应用用户确认后的排程（创建新任务 + 整体重排）
+// 请求体：{ newTodos: [{title,priority,dueDate,dueTime,tags,notes}], order: [id 或 "new-N"] }
+// 返回：{ ok, created: [{id,title,...}], reasoning } —— 已创建并应用 reorder
+router.post('/ai/apply-schedule', async (req, res) => {
+  const newTodos = Array.isArray(req.body.newTodos) ? req.body.newTodos : [];
+  const order = Array.isArray(req.body.order) ? req.body.order : [];
+  try {
+    const today = store.today();
+    const existingIds = new Set(store.listTodos(today).filter(t => !t.completed).map(t => t.id));
+
+    // 创建新任务，建立 new-N → 真实 id 映射
+    const idMap = {};
+    const created = [];
+    newTodos.forEach((t, i) => {
+      const title = String(t.title || '').trim();
+      if (!title) return; // 跳过空标题
+      const todo = store.createTodo({
+        title,
+        priority: t.priority || 'medium',
+        dueDate: t.dueDate || '',
+        dueTime: t.dueTime || '',
+        tags: t.tags || [],
+        notes: t.notes || ''
+      });
+      idMap['new-' + i] = todo.id;
+      created.push({ id: todo.id, title: todo.title, priority: todo.priority, dueDate: todo.dueDate, dueTime: todo.dueTime });
+    });
+
+    // order 中的 new-N 替换为真实 id，已有 id 校验后保留；去重
+    const seen = new Set();
+    const realOrder = [];
+    for (const id of order) {
+      const real = idMap[id] || id;
+      if (existingIds.has(real) && !seen.has(real)) {
+        seen.add(real); realOrder.push(real);
+      } else if (idMap[id] && !seen.has(real)) {
+        seen.add(real); realOrder.push(real);
+      }
+    }
+    if (realOrder.length > 0) store.reorderTodos(realOrder);
+
+    res.json({ ok: true, created, count: created.length });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }

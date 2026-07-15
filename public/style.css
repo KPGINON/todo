@@ -317,7 +317,11 @@ details[open] summary { margin-bottom: 14px; }
 .hint { color: var(--text-3); font-size: 14px; margin-bottom: 16px; }
 .error { color: var(--red); margin-bottom: 12px; font-size: 14px; }
 .msg { background: #e8f5e9; color: #2e7d32; padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 14px; }
-.btns { display: flex; gap: 12px; align-items: center; }
+#reorder-toast { display: flex; align-items: center; gap: 12px; background: #f0f7ff; color: #1a5fb4; padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 14px; }
+#reorder-toast span { flex: 1; }
+#reorder-toast button { border: none; background: transparent; cursor: pointer; font-size: 14px; }
+#reorder-toast #reorder-undo { color: #1a5fb4; font-weight: 600; text-decoration: underline; }
+#reorder-toast #reorder-dismiss { color: var(--text-3); }.btns { display: flex; gap: 12px; align-items: center; }
 .settings-form { display: flex; flex-direction: column; gap: 12px; }
 .settings-form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-2); }
 
@@ -404,24 +408,26 @@ details[open] summary { margin-bottom: 14px; }
 .import-form textarea { width: 100%; resize: vertical; font-family: monospace; font-size: 13px; }
 
 /* ========== 浮层 ========== */
-.pomodoro-overlay, .shortcuts-overlay, .ai-confirm-overlay {
+.shortcuts-overlay, .ai-confirm-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
   z-index: 100;
   padding: 20px;
 }
-.pomodoro-box, .shortcuts-box, .ai-confirm-box {
+.shortcuts-box, .ai-confirm-box {
   background: var(--card);
   border-radius: 16px;
   box-shadow: var(--shadow-lg);
 }
-.pomodoro-box { padding: 36px 40px; text-align: center; }
-.pomodoro-task { font-size: 16px; color: var(--text-2); margin-bottom: 16px; max-width: 320px; word-break: break-word; }
-.pomodoro-timer { font-size: 64px; font-weight: 200; color: var(--text); font-variant-numeric: tabular-nums; margin-bottom: 24px; }
-.pomodoro-controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
 
 .shortcuts-box { padding: 28px 32px; max-width: 400px; width: 100%; }
+
+.screenshot-drop { border: 2px dashed var(--border, #d0d0d8); border-radius: 12px; padding: 28px 16px; text-align: center; cursor: pointer; transition: background 0.15s, border-color 0.15s; margin-bottom: 12px; }
+.screenshot-drop:hover { border-color: var(--accent, #1a5fb4); background: #f7f9fc; }
+.screenshot-drop.dragover { border-color: var(--accent, #1a5fb4); background: #eaf2ff; }
+.screenshot-drop-hint { color: var(--text-3, #888); font-size: 14px; }
+.screenshot-drop img { max-width: 100%; max-height: 280px; border-radius: 8px; margin-top: 12px; }
 .shortcuts-box h2 { margin-bottom: 16px; }
 .shortcuts-list { list-style: none; margin-bottom: 20px; }
 .shortcuts-list li { padding: 8px 0; font-size: 14px; color: var(--text); }
@@ -447,14 +453,16 @@ kbd {
 .ai-todo-card .card-head .del-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1; }
 .ai-todo-card label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
 .ai-todo-card input, .ai-todo-card select, .ai-todo-card textarea { font-size: 14px; }
+.reorder-sched-list { list-style: decimal inside; margin: 8px 0 0; max-height: 200px; overflow-y: auto; padding-left: 4px; }
+.reorder-sched-list li { padding: 5px 8px; font-size: 13px; color: var(--text); border-radius: 6px; }
+.reorder-sched-list li:nth-child(odd) { background: #f7f7fa; }
+.reorder-sched-list li.new-item { color: #1a5fb4; font-weight: 600; }
 #ai-confirm-actions { display: none; gap: 12px; margin-top: 12px; }
 #ai-confirm-actions button { flex: 1; }
 #ai-confirm-cancel { background: #e0e0e5; color: var(--text); }
 
 /* 重排建议列表 */
-.reorder-list { list-style: decimal inside; margin: 12px 0; max-height: 240px; overflow-y: auto; }
-.reorder-list li { padding: 6px 8px; font-size: 14px; color: var(--text); border-radius: 6px; }
-.reorder-list li:nth-child(odd) { background: #f7f7fa; }
+.reorder-list { display: none; }
 
 /* ========== 移动端汉堡菜单 ========== */
 .menu-toggle {
@@ -505,8 +513,6 @@ kbd {
 
   .stats-grid { grid-template-columns: 1fr; }
   .bar-chart { gap: 6px; height: 120px; }
-  .pomodoro-timer { font-size: 48px; }
-  .pomodoro-box { padding: 28px 24px; }
   .shortcuts-box { padding: 22px; }
 
   .todo-item { padding: 10px 12px; }
