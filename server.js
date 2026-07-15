@@ -11,7 +11,6 @@ const app = express();
 // 连接数据库
 connectDB().catch(console.error);
 
-const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 信任反向代理（Nginx 等）的 X-Forwarded-* 头：
@@ -80,7 +79,6 @@ app.use('/data.json', (req, res) => {
 store.carryOver();
 
 // 路由
-app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/auth'));
 app.use('/login', require('./routes/todos'));
 app.use('/register', require('./routes/todos'));
