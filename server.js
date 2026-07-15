@@ -11,7 +11,7 @@ const app = express();
 // 连接数据库
 connectDB().catch(console.error);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 
 // 信任反向代理（Nginx 等）的 X-Forwarded-* 头：
 // 公网部署时代理做 SSL 终止，Node 侧连接为 HTTP，若不开启则
