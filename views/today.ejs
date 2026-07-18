@@ -8,7 +8,7 @@
   <div class="page-tools">
     <button type="button" class="tool-btn" id="tool-daily-clear" title="日清归档">⊟ 日清</button>
     <button type="button" class="tool-btn" id="tool-add-detail" title="带详情新建">+ 详情新建</button>
-    <button type="button" class="tool-btn" id="tool-screenshot" title="粘贴或拖入截图，AI 识别任务并排程">🖼 截图排程</button>
+    <button type="button" class="tool-btn" id="tool-chat" title="和 AI 聊天：管理日程或问普通问题">💬 AI 对话</button>
   </div>
 </div>
 
@@ -25,6 +25,28 @@
   <button type="button" class="icon-btn voice-btn" id="voice-btn" title="语音速记（说话即可，AI 帮你整理）" aria-label="语音速记">🎤</button>
   <button type="button" class="icon-btn ai-parse-btn" id="ai-parse-btn" title="用 AI 解析输入框内容并整理为任务" aria-label="AI 整理">✨</button>
 </div>
+
+<!-- 截图排程（页面内嵌常驻）：粘贴/拖入/上传截图，AI 识别任务并排程 -->
+<section class="screenshot-panel">
+  <h2>🖼 截图排程</h2>
+  <p id="screenshot-status" class="hint">粘贴截图（Ctrl+V）、拖入图片或点击选择文件。AI 会识别其中的任务并结合现有任务排程。</p>
+  <div id="screenshot-drop" class="screenshot-drop">
+    <input type="file" id="screenshot-file" accept="image/*" hidden>
+    <div class="screenshot-drop-hint">📋 粘贴 / 拖入图片 / 点击选择</div>
+    <img id="screenshot-preview" style="display:none;" alt="截图预览">
+  </div>
+  <div id="screenshot-result" style="display:none;">
+    <p id="screenshot-reason" class="hint screenshot-reason"></p>
+    <h3 class="screenshot-subhead">识别到的新任务（可编辑/删除）</h3>
+    <div id="screenshot-cards"></div>
+    <h3 class="screenshot-subhead">排程后的顺序</h3>
+    <ol id="screenshot-order" class="reorder-sched-list"></ol>
+  </div>
+  <div class="btns screenshot-actions" id="screenshot-actions" style="display:none;">
+    <button type="button" id="screenshot-analyze">分析</button>
+    <button type="button" id="screenshot-apply" style="display:none;">确认并排程</button>
+  </div>
+</section>
 
 <!-- 带详情新建（默认折叠） -->
 <details class="add-box" id="add-detail-box">
@@ -194,36 +216,29 @@
   </div>
 </div>
 
-<!-- 截图排程浮层：粘贴/拖入/上传截图，AI 识别任务并排程 -->
-<div class="ai-confirm-overlay" id="screenshot-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-  <div class="ai-confirm-box" style="max-width:560px;">
-    <h2>截图排程</h2>
-    <p id="screenshot-status" class="hint">粘贴截图（Ctrl+V）、拖入图片或点击选择文件。AI 会识别其中的任务并结合现有任务排程。</p>
-    <div id="screenshot-drop" class="screenshot-drop">
-      <input type="file" id="screenshot-file" accept="image/*" hidden>
-      <div class="screenshot-drop-hint">📋 粘贴 / 拖入图片 / 点击选择</div>
-      <img id="screenshot-preview" style="display:none;" alt="截图预览">
-    </div>
-    <div id="screenshot-result" style="display:none;">
-      <p id="screenshot-reason" class="hint" style="background:#f0f7ff;padding:10px;border-radius:8px;"></p>
-      <h3 style="margin:12px 0 6px;font-size:15px;">识别到的新任务（可编辑/删除）</h3>
-      <div id="screenshot-cards"></div>
-      <h3 style="margin:12px 0 6px;font-size:15px;">排程后的顺序</h3>
-      <ol id="screenshot-order" class="reorder-sched-list"></ol>
-    </div>
-    <div class="btns" id="screenshot-actions" style="display:none;">
-      <button type="button" id="screenshot-analyze">分析</button>
-      <button type="button" id="screenshot-apply" style="display:none;">确认并排程</button>
-      <button type="button" id="screenshot-cancel">取消</button>
-    </div>
-  </div>
-</div>
-
 <!-- AI 重排结果提示条（新增任务后自动触发，可撤销） -->
 <div id="reorder-toast" style="display:none;">
   <span id="reorder-toast-text"></span>
   <button type="button" id="reorder-undo">撤销</button>
   <button type="button" id="reorder-dismiss" aria-label="关闭">✕</button>
+</div>
+
+<!-- AI 对话浮层 -->
+<div class="chat-overlay" id="chat-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="chat-box">
+    <div class="chat-head">
+      <h2>AI 对话</h2>
+      <button type="button" class="chat-close" id="chat-close" aria-label="关闭">✕</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-hint">可以让我添加任务、查看今日清单，或随便聊点什么。</div>
+    </div>
+    <div class="chat-input-row">
+      <button type="button" class="chat-voice" id="chat-voice" title="语音输入" aria-label="语音输入">🎤</button>
+      <input type="text" id="chat-input" placeholder="输入消息，回车发送..." autocomplete="off">
+      <button type="button" class="chat-send" id="chat-send">发送</button>
+    </div>
+  </div>
 </div>
 
 <%- include('_foot') %>

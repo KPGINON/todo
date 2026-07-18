@@ -4,9 +4,10 @@ const store = require('../lib/store');
 const ai = require('../lib/ai');
 
 // 今日清单页
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const today = store.today();
-  const todos = store.listTodos(today);
+  const userId = req.session.userId;
+  const todos = await store.listTodos(today, userId);
   // 按优先级排序辅助
   const order = { high: 0, medium: 1, low: 2 };
   // 默认排序规则：优先级 → 截止日期 → 截止时间 → 创建时间
@@ -37,16 +38,17 @@ router.get('/', (req, res) => {
 });
 
 // 新增
-router.post('/todos', (req, res) => {
+router.post('/todos', async (req, res) => {
   const { title, priority, dueDate, dueTime, tags, notes } = req.body;
   if (!title || !title.trim()) return res.redirect('/?msg=标题不能为空');
-  const todo = store.createTodo({
+  const todo = await store.createTodo({
     title,
     priority: priority || 'medium',
     dueDate: dueDate || '',
     dueTime: dueTime || '',
     tags: tags || '',
-    notes: notes || ''
+    notes: notes || '',
+    userId: req.session.userId
   });
   // 带 newId 回首页，前端据此询问 AI 是否需要重排
   res.redirect('/?newTodoId=' + encodeURIComponent(todo.id));
@@ -57,12 +59,12 @@ router.post('/ai/suggest-reorder', async (req, res) => {
   const newId = (req.body.newTodoId || '').trim();
   if (!newId) return res.json({ ok: false, error: '缺少 newTodoId' });
   try {
-    const newTodo = store.getTodo(newId);
+    const newTodo = await store.getTodo(newId, req.session.userId);
     if (!newTodo) return res.json({ ok: false, error: '任务不存在' });
-    const all = store.listTodos(store.today()).filter(t => !t.completed);
+    const all = (await store.listTodos(store.today(), req.session.userId)).filter(t => !t.completed);
     // 前置过滤：任务少于 3 条无需重排，避免浪费 AI 调用
     if (all.length < 3) return res.json({ ok: false, error: '任务太少，无需重排' });
-    const result = await ai.suggestReorder(newTodo, all);
+    const result = await ai.suggestReorder(newTodo, all, req.session.userId);
     // 顺便返回 id→title 映射，便于前端展示
     const idTitle = {};
     all.forEach(t => { idTitle[t.id] = t.title; });
@@ -73,24 +75,24 @@ router.post('/ai/suggest-reorder', async (req, res) => {
 });
 
 // 切换完成状态
-router.post('/todos/:id/toggle', (req, res) => {
-  const todo = store.getTodo(req.params.id);
+router.post('/todos/:id/toggle', async (req, res) => {
+  const todo = await store.getTodo(req.params.id, req.session.userId);
   if (todo) {
-    store.updateTodo(req.params.id, { completed: !todo.completed });
+    await store.updateTodo(req.params.id, req.session.userId, { completed: !todo.completed });
   }
   res.redirect('/');
 });
 
 // 编辑
-router.get('/todos/:id/edit', (req, res) => {
-  const todo = store.getTodo(req.params.id);
+router.get('/todos/:id/edit', async (req, res) => {
+  const todo = await store.getTodo(req.params.id, req.session.userId);
   if (!todo) return res.redirect('/');
   res.render('edit', { todo });
 });
 
-router.post('/todos/:id/edit', (req, res) => {
+router.post('/todos/:id/edit', async (req, res) => {
   const { title, priority, dueDate, dueTime, tags, notes } = req.body;
-  store.updateTodo(req.params.id, {
+  await store.updateTodo(req.params.id, req.session.userId, {
     title: (title || '').trim(),
     priority: priority || 'medium',
     dueDate: dueDate || '',
@@ -102,32 +104,32 @@ router.post('/todos/:id/edit', (req, res) => {
 });
 
 // 删除
-router.post('/todos/:id/delete', (req, res) => {
-  store.deleteTodo(req.params.id);
+router.post('/todos/:id/delete', async (req, res) => {
+  await store.deleteTodo(req.params.id, req.session.userId);
   res.redirect('/');
 });
 
 // 批量操作
-router.post('/todos/batch', (req, res) => {
+router.post('/todos/batch', async (req, res) => {
   const { ids, action, priority, completed, tags } = req.body;
   const idList = Array.isArray(ids) ? ids : (ids ? [ids] : []);
   if (idList.length === 0) return res.redirect('/?msg=未选择任务');
 
   switch (action) {
     case 'complete':
-      store.batchUpdate(idList, { completed: true });
+      await store.batchUpdate(idList, req.session.userId, { completed: true });
       break;
     case 'uncomplete':
-      store.batchUpdate(idList, { completed: false });
+      await store.batchUpdate(idList, req.session.userId, { completed: false });
       break;
     case 'delete':
-      store.batchDelete(idList);
+      await store.batchDelete(idList, req.session.userId);
       break;
     case 'priority':
-      store.batchUpdate(idList, { priority: priority || 'medium' });
+      await store.batchUpdate(idList, req.session.userId, { priority: priority || 'medium' });
       break;
     case 'addTags':
-      store.batchAddTags(idList, tags || '');
+      await store.batchAddTags(idList, req.session.userId, tags || '');
       break;
     default:
       return res.redirect('/?msg=未知操作');
@@ -136,15 +138,15 @@ router.post('/todos/batch', (req, res) => {
 });
 
 // 拖拽排序
-router.post('/todos/reorder', (req, res) => {
+router.post('/todos/reorder', async (req, res) => {
   const ids = Array.isArray(req.body.ids) ? req.body.ids : (req.body.ids ? [req.body.ids] : []);
-  if (ids.length > 0) store.reorderTodos(ids);
+  if (ids.length > 0) await store.reorderTodos(ids, req.session.userId);
   res.redirect('/');
 });
 
 // 日清归档
-router.post('/daily-clear', (req, res) => {
-  const result = store.dailyClear(req.body.date || store.today());
+router.post('/daily-clear', async (req, res) => {
+  const result = await store.dailyClear(req.body.date || store.today(), req.session.userId);
   const m = `已归档 ${result.archived} 条，顺延 ${result.carriedOver} 条`;
   res.redirect('/?msg=' + encodeURIComponent(m));
 });
@@ -153,13 +155,13 @@ router.post('/daily-clear', (req, res) => {
 router.post('/ai-reschedule', async (req, res) => {
   const situation = req.body.situation || '';
   const today = store.today();
-  const remaining = store.listTodos(today).filter(t => !t.completed);
+  const remaining = (await store.listTodos(today, req.session.userId)).filter(t => !t.completed);
   if (remaining.length === 0) {
     return res.redirect('/?msg=' + encodeURIComponent('没有未完成任务可重排'));
   }
   try {
-    const { order, reasoning } = await ai.reschedule(remaining, situation);
-    store.reorderTodos(order);
+    const { order, reasoning } = await ai.reschedule(remaining, situation, req.session.userId);
+    await store.reorderTodos(order, req.session.userId);
     const m = reasoning ? `已重排：${reasoning}` : '已重排任务顺序';
     res.redirect('/?msg=' + encodeURIComponent(m));
   } catch (e) {
@@ -174,7 +176,7 @@ router.post('/ai/parse-todo', async (req, res) => {
     return res.json({ ok: false, error: '内容为空' });
   }
   try {
-    const todos = await ai.parseTodo(transcript);
+    const todos = await ai.parseTodo(transcript, req.session.userId);
     res.json({ ok: true, todos });
   } catch (e) {
     res.json({ ok: false, error: e.message });
@@ -194,8 +196,8 @@ router.post('/ai/schedule-screenshot', async (req, res) => {
   }
   try {
     const today = store.today();
-    const existing = store.listTodos(today).filter(t => !t.completed);
-    const result = await ai.analyzeScreenshot(image, mimeType, existing);
+    const existing = (await store.listTodos(today, req.session.userId)).filter(t => !t.completed);
+    const result = await ai.analyzeScreenshot(image, mimeType, existing, req.session.userId);
     const existingMap = {};
     existing.forEach(t => { existingMap[t.id] = t.title; });
     res.json({
@@ -218,25 +220,27 @@ router.post('/ai/apply-schedule', async (req, res) => {
   const order = Array.isArray(req.body.order) ? req.body.order : [];
   try {
     const today = store.today();
-    const existingIds = new Set(store.listTodos(today).filter(t => !t.completed).map(t => t.id));
+    const existingIds = new Set((await store.listTodos(today, req.session.userId)).filter(t => !t.completed).map(t => t.id));
 
     // 创建新任务，建立 new-N → 真实 id 映射
     const idMap = {};
     const created = [];
-    newTodos.forEach((t, i) => {
+    for (let i = 0; i < newTodos.length; i++) {
+      const t = newTodos[i];
       const title = String(t.title || '').trim();
-      if (!title) return; // 跳过空标题
-      const todo = store.createTodo({
+      if (!title) continue; // 跳过空标题
+      const todo = await store.createTodo({
         title,
         priority: t.priority || 'medium',
         dueDate: t.dueDate || '',
         dueTime: t.dueTime || '',
         tags: t.tags || [],
-        notes: t.notes || ''
+        notes: t.notes || '',
+        userId: req.session.userId
       });
       idMap['new-' + i] = todo.id;
       created.push({ id: todo.id, title: todo.title, priority: todo.priority, dueDate: todo.dueDate, dueTime: todo.dueTime });
-    });
+    }
 
     // order 中的 new-N 替换为真实 id，已有 id 校验后保留；去重
     const seen = new Set();
@@ -249,9 +253,28 @@ router.post('/ai/apply-schedule', async (req, res) => {
         seen.add(real); realOrder.push(real);
       }
     }
-    if (realOrder.length > 0) store.reorderTodos(realOrder);
+    if (realOrder.length > 0) await store.reorderTodos(realOrder, req.session.userId);
 
     res.json({ ok: true, created, count: created.length });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// AI 对话：带意图识别，返回 { type, action?, reply?, tasks? }
+// 请求体：{ message: string, history: [{role,content}] }
+//   type=chat -> 普通对话，reply 为回复文本
+//   type=todo&action=create -> 需创建任务，tasks 为结构化数组，交前端预览确认
+//   type=todo&action=list -> 查询类，reply 已结合任务数据作答
+router.post('/ai/chat', async (req, res) => {
+  const message = (req.body.message || '').trim();
+  if (!message) return res.json({ ok: false, error: '内容为空' });
+  const history = Array.isArray(req.body.history) ? req.body.history : [];
+  try {
+    const today = store.today();
+    const todos = await store.listTodos(today, req.session.userId);
+    const result = await ai.chat(history, message, { todos, date: today }, req.session.userId);
+    res.json({ ok: true, ...result });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }

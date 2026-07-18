@@ -157,7 +157,8 @@
   let finalTranscript = '';
   let stoppedManually = false;
   let silenceTimer = null;
-  const SILENCE_MS = 1500; // 静默 1.5 秒判定说完
+  let autoStoppedBySilence = false; // 区分"静默自动停止"与"服务端超时断开"
+  const SILENCE_MS = 4000; // 静默 4 秒判定说完（覆盖句间/思考停顿，避免话没说完就断）
 
   // 打开 AI 确认弹窗
   function openAiConfirm() {
@@ -277,11 +278,12 @@
       // 开始录音：重置状态
       finalTranscript = '';
       stoppedManually = false;
+      autoStoppedBySilence = false;
       voiceBtn.classList.add('recording');
       voiceBtn.textContent = '⏹';
       isRecording = true;
       openAiConfirm();
-      document.getElementById('ai-confirm-status').textContent = '正在聆听...说完会自动结束';
+      document.getElementById('ai-confirm-status').textContent = '正在聆听...说完停顿 4 秒后自动结束，或再点 ⏹ 立即结束';
 
       recognition.onresult = function (event) {
         // 只处理新增的 result（event.resultIndex 之后的），避免重复累积
@@ -303,7 +305,7 @@
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           if (isRecording && finalTranscript.trim()) {
-            stoppedManually = true; // 自动停止也走解析流程
+            autoStoppedBySilence = true; // 静默自动停止，走解析流程
             recognition.stop();
           }
         }, SILENCE_MS);
@@ -319,14 +321,24 @@
         voiceBtn.textContent = '🎤';
         isRecording = false;
         if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-        // 有内容就触发 AI 解析（无论主动停止还是静默自动停止）
-        if (finalTranscript.trim()) {
-          document.getElementById('ai-confirm-status').textContent = '听到："' + finalTranscript.trim() + '"，正在用 AI 整理...';
-          callAiParse(finalTranscript.trim());
+        // 仅在用户主动停止或静默自动停止时才解析；
+        // 否则是浏览器/服务端超时断开（continuous 也无法避免），提示重试，不误解析半截内容
+        if (stoppedManually || autoStoppedBySilence) {
+          if (finalTranscript.trim()) {
+            document.getElementById('ai-confirm-status').textContent = '听到："' + finalTranscript.trim() + '"，正在用 AI 整理...';
+            callAiParse(finalTranscript.trim());
+          } else {
+            document.getElementById('ai-confirm-status').textContent = '未识别到内容，请重试';
+          }
+        } else if (finalTranscript.trim()) {
+          // 服务端超时断开但已有内容：用户可能还没说完，提示可继续
+          document.getElementById('ai-confirm-status').textContent = '录音已断开（超时），已听到："' + finalTranscript.trim() + '"。再点 🎤 可继续录音，或点 ✨ 用当前内容整理。';
+          document.getElementById('ai-confirm-status').style.color = '#e08600';
         } else {
           document.getElementById('ai-confirm-status').textContent = '未识别到内容，请重试';
         }
         stoppedManually = false;
+        autoStoppedBySilence = false;
       };
       recognition.start();
     });
@@ -410,8 +422,7 @@
   }
 
   // ============ 截图排程：粘贴/拖入/上传截图，AI 识别任务并整体排程 ============
-  const shotBtn = document.getElementById('tool-screenshot');
-  const shotOverlay = document.getElementById('screenshot-overlay');
+  // 常驻页面内嵌区块（.screenshot-panel），不再用浮层
   const shotDrop = document.getElementById('screenshot-drop');
   const shotFile = document.getElementById('screenshot-file');
   const shotPreview = document.getElementById('screenshot-preview');
@@ -420,16 +431,11 @@
   const shotActions = document.getElementById('screenshot-actions');
   const shotAnalyze = document.getElementById('screenshot-analyze');
   const shotApply = document.getElementById('screenshot-apply');
-  const shotCancel = document.getElementById('screenshot-cancel');
   let shotImageData = null; // { base64, mimeType }
   // 分析结果：保留 order 与 existing 映射，供"确认并排程"提交
   let shotOrder = [];
   let shotExisting = {};
 
-  function openScreenshot() {
-    resetScreenshot();
-    shotOverlay.style.display = 'flex';
-  }
   function resetScreenshot() {
     shotImageData = null;
     shotOrder = [];
@@ -462,9 +468,6 @@
     shotStatus.style.color = '';
   }
 
-  if (shotBtn) shotBtn.addEventListener('click', openScreenshot);
-  if (shotCancel) shotCancel.addEventListener('click', () => { shotOverlay.style.display = 'none'; });
-
   // 点击 drop 区域触发文件选择
   if (shotDrop) shotDrop.addEventListener('click', () => shotFile && shotFile.click());
   if (shotFile) shotFile.addEventListener('change', () => {
@@ -491,9 +494,9 @@
     });
   }
 
-  // 粘贴（仅当浮层打开时拦截）
+  // 粘贴（常驻：页面上有截图区就拦截图片粘贴，文本粘贴不受影响）
   document.addEventListener('paste', e => {
-    if (!shotOverlay || shotOverlay.style.display === 'none') return;
+    if (!shotDrop) return;
     const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
     for (const it of items) {
@@ -823,4 +826,172 @@
       }
     }
   });
+  // ============ AI 对话：意图识别聊天（日程管理 / 普通问题） ============
+  const chatBtn = document.getElementById('tool-chat');
+  const chatOverlay = document.getElementById('chat-overlay');
+  const chatClose = document.getElementById('chat-close');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatInput = document.getElementById('chat-input');
+  const chatSend = document.getElementById('chat-send');
+  const chatVoice = document.getElementById('chat-voice');
+  // 对话历史，发给后端做多轮上下文
+  let chatHistory = [];
+  let chatVoiceRec = null;
+  let chatVoiceRecording = false;
+  // 发送中锁 + 可中止的请求控制器：发送中再次触发会取消上一个请求并重发
+  let chatSending = false;
+  let chatAbort = null;
+
+  function getCsrf() {
+    const el = document.querySelector('input[name="_csrf"]');
+    return el ? el.value : '';
+  }
+
+  function escapeChatHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  }
+
+  function appendBubble(role, text) {
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + (role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai');
+    div.innerHTML = escapeChatHtml(text);
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return div;
+  }
+
+  function openChat() {
+    chatOverlay.style.display = 'flex';
+    setTimeout(() => chatInput && chatInput.focus(), 50);
+  }
+  if (chatBtn) chatBtn.addEventListener('click', openChat);
+  if (chatClose) chatClose.addEventListener('click', () => { chatOverlay.style.display = 'none'; });
+
+  // 把 AI 返回的创建任务预览到现有"AI 整理结果"弹窗，复用确认流程
+  function previewCreateTasks(tasks, reply) {
+    const overlay = document.getElementById('ai-confirm-overlay');
+    const status = document.getElementById('ai-confirm-status');
+    const listEl = document.getElementById('ai-confirm-list');
+    const actionsEl = document.getElementById('ai-confirm-actions');
+    const title = document.getElementById('ai-confirm-title');
+    if (title) title.textContent = 'AI 要添加以下任务';
+    if (status) {
+      status.textContent = (reply ? reply + ' —— ' : '') + '共 ' + tasks.length + ' 个任务，确认无误后点"全部添加"：';
+      status.style.color = '';
+    }
+    if (listEl) {
+      renderAiTodoCards(tasks, listEl);
+      listEl.style.display = 'flex';
+    }
+    if (actionsEl) actionsEl.style.display = 'flex';
+    if (overlay) overlay.style.display = 'flex';
+  }
+
+  async function sendChat() {
+    const text = (chatInput.value || '').trim();
+    if (!text) return;
+    // 发送中再次触发：中止上一个请求，回滚它占位的 history，再重发
+    if (chatSending) {
+      if (chatAbort) { try { chatAbort.abort(); } catch (e) {} }
+      // 移除上一轮未完成的 user 占位（最后一条若是 user 且无对应 assistant，去掉）
+      // 简化：直接重发时把当前输入并入，不再尝试清理 pending
+    }
+    chatInput.value = '';
+    appendBubble('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    const thinking = appendBubble('assistant', '正在思考...');
+    chatSending = true;
+    chatSend.disabled = true;
+    chatSend.textContent = '...';
+    chatAbort = new AbortController();
+    try {
+      const resp = await fetch('/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _csrf: getCsrf(), message: text, history: chatHistory.slice(0, -1) }),
+        signal: chatAbort.signal
+      });
+      const data = await resp.json();
+      thinking.remove();
+      if (!data.ok) {
+        // 业务错误：回滚刚 push 的 user 消息，方便重发
+        chatHistory.pop();
+        appendBubble('assistant', '出错了：' + (data.error || '未知错误'));
+        return;
+      }
+      if (data.type === 'todo' && data.action === 'create') {
+        chatHistory.push({ role: 'assistant', content: data.reply || ('将创建 ' + data.tasks.length + ' 个任务') });
+        appendBubble('assistant', (data.reply || '已识别 ' + data.tasks.length + ' 个任务') + '（请在弹窗中确认）');
+        previewCreateTasks(data.tasks, data.reply);
+      } else {
+        const reply = data.reply || '（无回复）';
+        chatHistory.push({ role: 'assistant', content: reply });
+        appendBubble('assistant', reply);
+      }
+    } catch (e) {
+      thinking.remove();
+      if (e && e.name === 'AbortError') {
+        // 被中止（重发或关闭）：回滚 user 占位，不显示错误
+        chatHistory.pop();
+      } else {
+        chatHistory.pop();
+        appendBubble('assistant', '网络错误：' + e.message);
+      }
+    } finally {
+      chatSending = false;
+      chatAbort = null;
+      chatSend.disabled = false;
+      chatSend.textContent = '发送';
+    }
+  }
+  if (chatSend) chatSend.addEventListener('click', sendChat);
+  if (chatInput) chatInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!chatSending) sendChat(); }
+  });
+
+  // 语音输入：把识别结果填到聊天输入框，不触发解析
+  if (chatVoice) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SR) {
+      chatVoiceRec = new SR();
+      chatVoiceRec.lang = 'zh-CN';
+      chatVoiceRec.continuous = false;
+      chatVoiceRec.interimResults = true;
+      let chatFinal = '';
+      chatVoiceRec.onresult = function (event) {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const r = event.results[i];
+          if (r.isFinal) chatFinal += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        chatInput.value = (chatFinal + interim).trim();
+      };
+      chatVoiceRec.onend = function () {
+        chatVoiceRecording = false;
+        chatVoice.classList.remove('recording');
+        chatVoice.textContent = '🎤';
+        chatInput.focus();
+      };
+      chatVoiceRec.onerror = function () {
+        chatVoiceRecording = false;
+        chatVoice.classList.remove('recording');
+        chatVoice.textContent = '🎤';
+      };
+      chatVoice.addEventListener('click', function () {
+        if (chatVoiceRecording) { chatVoiceRec.stop(); return; }
+        chatFinal = '';
+        chatInput.value = '';
+        chatVoiceRecording = true;
+        chatVoice.classList.add('recording');
+        chatVoice.textContent = '⏹';
+        try { chatVoiceRec.start(); } catch (e) { chatVoiceRecording = false; chatVoice.classList.remove('recording'); chatVoice.textContent = '🎤'; }
+      });
+    } else {
+      chatVoice.addEventListener('click', function () {
+        alert('当前浏览器不支持语音识别，请直接打字输入');
+      });
+    }
+  }
+
 })();
